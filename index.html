@@ -6,11 +6,11 @@
 <meta name="color-scheme" content="light dark">
 <title>Magnet Link Converter</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Convert .torrent files to magnet links and magnet links to .torrent files, right in your browser.">
+<meta name="description" content="Convert .torrent files to magnet links, and stream or download torrent files right in your browser.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: single centered tool column; a two-pole (N/S) mode switch on top, input card, result card below. */
+/* Layout: single centered tool column; header with account chip, a three-way mode switch, then the active panel. */
 :root {
   --bg: #eceff3;
   --surface: #fbfcfd;
@@ -42,55 +42,62 @@ body {
   font-family: var(--font-body); font-size: 15px; line-height: 1.55; margin: 0;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 32px 48px;
+  padding-block: 28px 48px;
 }
-.wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 20px; }
+.wrap { max-width: 780px; margin: 0 auto; display: grid; gap: 20px; }
 header { display: grid; gap: 8px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 6vw, 44px); line-height: 1.05; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
 h1 .n { color: var(--north); } h1 .s { color: var(--south); }
-.lede { margin: 0; color: var(--muted); max-width: 60ch; }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
 .poles { display: flex; height: 4px; width: 96px; border-radius: 2px; overflow: hidden; }
 .poles i { flex: 1; } .poles i:first-child { background: var(--north); } .poles i:last-child { background: var(--south); }
+.chip { font: 500 13px/1 var(--font-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; cursor: pointer; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip:hover { border-color: var(--muted); }
 
-.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
 .modes button {
-  font: 600 15px/1.2 var(--font-body); color: var(--muted); background: transparent; border: 0; padding: 14px 12px; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; gap: 8px; border-bottom: 3px solid transparent;
+  font: 600 14px/1.2 var(--font-body); color: var(--muted); background: transparent; border: 0; padding: 14px 8px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px; border-bottom: 3px solid transparent; text-align: center;
 }
 .modes button + button { border-left: 1px solid var(--line); }
 .modes button[aria-selected="true"] { color: var(--ink); background: var(--sunk); }
 .modes button[data-mode="torrent"][aria-selected="true"] { border-bottom-color: var(--north); }
 .modes button[data-mode="magnet"][aria-selected="true"] { border-bottom-color: var(--south); }
+.modes button[data-mode="account"][aria-selected="true"] { border-bottom-color: var(--ink); }
 .modes .arrow { font-family: var(--font-mono); font-weight: 500; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
 .card h2 { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.tag { font: 500 11px/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; padding: 5px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.card h3 { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin: 0; }
+.tag { font: 500 11px/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; padding: 5px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); white-space: nowrap; }
 .tag.ok { color: var(--ok); } .tag.warn { color: var(--warn); }
 
 .drop {
   border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px; text-align: center; cursor: pointer; display: grid; gap: 6px;
-  background: var(--sunk); transition: border-color .15s, background .15s;
+  background: var(--sunk); transition: border-color .15s;
 }
 .drop:hover, .drop.over, .drop:focus-visible { border-color: var(--north); outline: none; }
 .drop strong { font-size: 16px; }
 .drop span { color: var(--muted); font-size: 13px; }
 
 label.field { display: grid; gap: 6px; font-weight: 600; font-size: 13px; color: var(--muted); }
-textarea {
-  font: 13px/1.5 var(--font-mono); color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 10px;
-  padding: 12px; width: 100%; min-height: 96px; resize: vertical; word-break: break-all;
+textarea, input[type="email"], input[type="password"] {
+  font: 14px/1.5 var(--font-body); color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; width: 100%;
 }
-textarea:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--south); outline-offset: 2px; }
+textarea { font: 13px/1.5 var(--font-mono); min-height: 96px; resize: vertical; word-break: break-all; }
+textarea:focus-visible, button:focus-visible, input:focus-visible, a:focus-visible, .drop:focus-visible { outline: 2px solid var(--south); outline-offset: 2px; }
 
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .btn {
   font: 600 14px/1 var(--font-body); padding: 11px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
-  color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+  color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 8px; text-decoration: none;
 }
 .btn:hover { border-color: var(--muted); }
 .btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
 .btn.primary:hover { opacity: .9; }
+.btn.stream { background: var(--south); color: #fff; border-color: var(--south); }
+.btn.small { padding: 8px 12px; font-size: 13px; }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .check { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--south); }
@@ -102,42 +109,87 @@ dl.meta dd { margin: 0; min-width: 0; word-break: break-all; }
 dl.meta dd.mono { font-family: var(--font-mono); font-size: 13px; }
 @media (max-width: 520px) { dl.meta { grid-template-columns: 1fr; gap: 2px; } dl.meta dd { margin-bottom: 8px; } }
 ul.list { margin: 0; padding-left: 18px; font-family: var(--font-mono); font-size: 12.5px; display: grid; gap: 2px; }
-.files { max-height: 180px; overflow: auto; }
+.files-scroll { max-height: 180px; overflow: auto; }
+details summary { cursor: pointer; font-size: 14px; }
 
 .result { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 12px; }
-.result:first-of-type { border-top: 0; padding-top: 0; }
+.result:first-child { border-top: 0; padding-top: 0; }
 .fname { font-weight: 600; word-break: break-all; }
 .msg { font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--sunk); border-left: 3px solid var(--muted); }
 .msg.err { border-left-color: var(--north); }
 .msg.ok { border-left-color: var(--ok); }
 .msg.info { border-left-color: var(--south); }
+.msg.warn { border-left-color: var(--warn); }
 .msg a { color: var(--south); }
 .progress { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
-.progress i { display: block; height: 100%; width: 30%; background: var(--south); animation: slide 1.4s ease-in-out infinite; }
+.progress i { display: block; height: 100%; width: 0; background: var(--south); transition: width .4s; }
+.progress.busy i { width: 30%; animation: slide 1.4s ease-in-out infinite; }
 @keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
-@media (prefers-reduced-motion: reduce) { .progress i { animation: none; width: 100%; opacity: .5; } }
+@media (prefers-reduced-motion: reduce) { .progress.busy i { animation: none; width: 100%; opacity: .5; } .progress i { transition: none; } }
+
+/* Torrent session */
+.session { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 13px/1.4 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.stats b { color: var(--ink); font-weight: 500; }
+.player { display: grid; gap: 8px; }
+.player video, .player audio { width: 100%; max-width: 100%; border-radius: 10px; background: #000; max-height: 70vh; }
+.player audio { background: transparent; }
+.player .now { font-size: 13px; color: var(--muted); word-break: break-all; }
+.filelist { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.file { display: grid; gap: 8px; padding: 12px; min-width: 0; }
+.file + .file { border-top: 1px solid var(--line); }
+.file .head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; min-width: 0; }
+.file .name { font-weight: 500; word-break: break-all; min-width: 0; }
+.file .size { font: 12.5px var(--font-mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.file .direct { font: 12px/1.4 var(--font-mono); color: var(--muted); word-break: break-all; }
+
+/* Account */
+.seg { display: inline-grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; justify-self: start; }
+.seg button { font: 600 14px/1 var(--font-body); padding: 10px 18px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+form.auth { display: grid; gap: 12px; max-width: 420px; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--south); font: 500 14px var(--font-body); cursor: pointer; justify-self: start; text-decoration: underline; }
 
 .faq { display: grid; gap: 10px; font-size: 14px; color: var(--muted); }
-.faq h3 { font-family: var(--font-display); font-size: 16px; color: var(--ink); margin: 0; }
+.faq h3 { color: var(--ink); }
 .faq p { margin: 0; max-width: 65ch; }
 footer { font-size: 12.5px; color: var(--muted); text-align: center; }
-.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 20; }
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+footer a { color: inherit; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 20; max-width: calc(100% - 32px); }
 </style>
 </head>
 <body>
 
 <div class="wrap">
   <header>
-    <div class="poles" aria-hidden="true"><i></i><i></i></div>
+    <div class="topbar">
+      <div class="poles" aria-hidden="true"><i></i><i></i></div>
+      <button class="chip" id="acct-chip" type="button">Log in</button>
+    </div>
     <h1><span class="n">Torrent</span> ⇄ <span class="s">Magnet</span> Converter</h1>
-    <p class="lede">Turn .torrent files into magnet links, or magnet links into .torrent files. Files are read in your browser and never uploaded anywhere.</p>
+    <p class="lede">Turn .torrent files into magnet links, and stream or download what's inside a magnet link without installing anything. Your files are processed in your browser and never uploaded.</p>
   </header>
 
-  <div class="modes" role="tablist" aria-label="Conversion direction">
+  <div class="modes" role="tablist" aria-label="Choose a tool">
+    <button role="tab" id="tab-magnet" data-mode="magnet" aria-selected="true" aria-controls="panel-magnet">Magnet <span class="arrow">→</span> stream</button>
     <button role="tab" id="tab-torrent" data-mode="torrent" aria-selected="false" aria-controls="panel-torrent">.torrent <span class="arrow">→</span> magnet</button>
-    <button role="tab" id="tab-magnet" data-mode="magnet" aria-selected="true" aria-controls="panel-magnet">magnet <span class="arrow">→</span> .torrent</button>
+    <button role="tab" id="tab-account" data-mode="account" aria-selected="false" aria-controls="panel-account">Log in / Sign up</button>
   </div>
+
+  <!-- MAGNET → STREAM / DOWNLOAD -->
+  <section id="panel-magnet" role="tabpanel" aria-labelledby="tab-magnet">
+    <div class="card">
+      <h2>Stream or download a magnet link</h2>
+      <label class="field" for="m-input">Magnet link or info hash
+        <textarea id="m-input" spellcheck="false" autocomplete="off" placeholder="magnet:?xt=urn:btih:…"></textarea>
+      </label>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="m-extra"> Add public trackers</label>
+        <button class="btn small" id="m-clear" type="button">Clear</button>
+      </div>
+      <div id="m-results"></div>
+    </div>
+  </section>
 
   <!-- TORRENT → MAGNET -->
   <section id="panel-torrent" role="tabpanel" aria-labelledby="tab-torrent" hidden>
@@ -154,41 +206,64 @@ footer { font-size: 12.5px; color: var(--muted); text-align: center; }
       </div>
       <div id="t-results"></div>
       <div class="row" id="t-all-row" hidden>
-        <button class="btn" id="t-copy-all">Copy all magnet links</button>
+        <button class="btn" id="t-copy-all" type="button">Copy all magnet links</button>
       </div>
     </div>
   </section>
 
-  <!-- MAGNET → TORRENT -->
-  <section id="panel-magnet" role="tabpanel" aria-labelledby="tab-magnet">
-    <div class="card">
-      <h2>Convert a magnet link</h2>
-      <label class="field" for="m-input">Magnet link or info hash
-        <textarea id="m-input" spellcheck="false" autocomplete="off" placeholder="magnet:?xt=urn:btih:…"></textarea>
-      </label>
-      <div class="row">
-        <label class="check"><input type="checkbox" id="m-extra"> Add public trackers</label>
-        <button class="btn" id="m-clear">Clear</button>
+  <!-- ACCOUNT -->
+  <section id="panel-account" role="tabpanel" aria-labelledby="tab-account" hidden>
+    <div class="card" id="acct-card">
+      <div id="acct-out" hidden>
+        <div style="display:grid;gap:12px">
+          <h2>Your account</h2>
+          <p style="margin:0">Signed in as <b id="acct-email"></b></p>
+          <div class="row"><button class="btn" id="acct-logout" type="button">Log out</button></div>
+        </div>
       </div>
-      <div id="m-results"></div>
+      <div id="acct-in" style="display:grid;gap:16px">
+        <div class="seg" role="group" aria-label="Log in or sign up">
+          <button type="button" id="seg-login" aria-pressed="true">Log in</button>
+          <button type="button" id="seg-signup" aria-pressed="false">Sign up</button>
+        </div>
+        <form class="auth" id="auth-form" novalidate>
+          <h2 id="auth-title">Log in</h2>
+          <label class="field" for="auth-email">Email
+            <input type="email" id="auth-email" autocomplete="email" required>
+          </label>
+          <label class="field" for="auth-pass" id="auth-pass-wrap">Password
+            <input type="password" id="auth-pass" autocomplete="current-password" minlength="6" required>
+          </label>
+          <label class="field" for="auth-pass2" id="auth-pass2-wrap" hidden>Confirm password
+            <input type="password" id="auth-pass2" autocomplete="new-password" minlength="6">
+          </label>
+          <div class="row"><button class="btn primary" id="auth-submit" type="submit">Log in</button></div>
+          <button class="linkbtn" id="auth-forgot" type="button">Forgot your password?</button>
+          <div id="auth-msg"></div>
+        </form>
+      </div>
     </div>
   </section>
 
   <div class="card faq">
     <h3>How it works</h3>
-    <p><b>.torrent → magnet</b> happens instantly. The page decodes the file, hashes its <code>info</code> section (SHA-1 for v1, SHA-256 for v2), and builds the link with the name, size, trackers and web seeds.</p>
-    <p><b>Magnet → .torrent</b> needs the torrent's metadata, which only peers have. The page connects to browser-capable (WebRTC) peers and saves the file as soon as the metadata arrives. Torrents seeded only by desktop clients may never answer; in that case, open the magnet link in a desktop client such as qBittorrent and export the .torrent from there.</p>
-    <p>Only convert torrents you have the right to share.</p>
+    <p><b>Streaming and downloading</b> uses WebTorrent, which fetches pieces from other people's browsers (WebRTC peers) and from web seeds. Torrents shared only by desktop apps such as qBittorrent can't be reached from a web page, so some magnet links will never load here.</p>
+    <p><b>Direct links</b> appear when a torrent includes a web seed: a normal https:// address for each file that anyone can download. Downloads made in this page are kept in memory until saved, so very large files (over about 2 GB) may fail, especially on phones.</p>
+    <p><b>.torrent → magnet</b> happens instantly. The page reads the file and hashes its info section to build the link.</p>
+    <p>Only stream, download or share torrents you have the right to.</p>
   </div>
-  <footer>Runs entirely in your browser · <a href="https://github.com/Malsaalim/Magnet-Link-Convertir" style="color:inherit">Source on GitHub</a></footer>
+  <footer>Runs in your browser · <a href="https://github.com/Malsaalim/Magnet-Link-Convertir">Source on GitHub</a></footer>
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
 
+<script src="config.js" onerror="void 0"></script>
 <script>
 (() => {
 "use strict";
 const STANDALONE_URL = "https://malsaalim.github.io/Magnet-Link-Convertir/";
 const WEBTORRENT_SRC = "https://cdn.jsdelivr.net/npm/webtorrent@1.9.7/webtorrent.min.js";
+const SUPABASE_SRC = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js";
+const CFG = window.APP_CONFIG || {};
 const PUBLIC_TRACKERS = [
   "udp://tracker.opentrackr.org:1337/announce",
   "udp://open.demonii.com:1337/announce",
@@ -201,6 +276,8 @@ const PUBLIC_TRACKERS = [
 ];
 const WS_TRACKERS = PUBLIC_TRACKERS.filter(t => t.startsWith("wss://"));
 const SAMPLE_MAGNET = "magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=Big+Buck+Bunny&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fbig-buck-bunny.torrent";
+const VIDEO_EXT = /\.(mp4|m4v|webm|mov|mkv|ogv)$/i;
+const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|oga|opus|wav|flac)$/i;
 
 const $ = s => document.querySelector(s);
 const el = (tag, attrs = {}, ...kids) => {
@@ -215,13 +292,13 @@ const utf8 = new TextDecoder("utf-8");
 const toStr = b => (b instanceof Uint8Array ? utf8.decode(b) : String(b));
 const hex = buf => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join("");
 
-/* ---------- size formatting ---------- */
-function fmtSize(n) {
+function fmtBytes(n) {
   if (n == null || isNaN(n)) return "Unknown";
   const u = ["B", "KB", "MB", "GB", "TB", "PB"]; let i = 0, v = n;
   while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return (i ? v.toFixed(v < 10 ? 2 : 1) : v) + " " + u[i] + (i ? " (" + n.toLocaleString() + " bytes)" : "");
+  return (i ? v.toFixed(v < 10 ? 2 : 1) : v) + " " + u[i];
 }
+const fmtSize = n => (n == null || isNaN(n)) ? "Unknown" : fmtBytes(n) + (n >= 1024 ? " (" + n.toLocaleString() + " bytes)" : "");
 
 /* ---------- base32 <-> hex ---------- */
 const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -352,7 +429,7 @@ function parseMagnet(input) {
   let s = input.trim();
   if (/^[0-9a-f]{40}$/i.test(s) || /^[a-z2-7]{32}$/i.test(s)) s = "magnet:?xt=urn:btih:" + s;
   if (!/^magnet:\?/i.test(s)) throw new Error("A magnet link starts with magnet:? — or paste a 40-character info hash.");
-  const out = { btih: null, btmh: null, name: null, size: null, trackers: [], webSeeds: [], sources: [], b32: null };
+  const out = { btih: null, btmh: null, name: null, size: null, trackers: [], webSeeds: [], sources: [] };
   const dec = v => { try { return decodeURIComponent(v.replace(/\+/g, " ")); } catch { return v; } };
   for (const part of s.slice(s.indexOf("?") + 1).split("&")) {
     if (!part) continue;
@@ -363,7 +440,7 @@ function parseMagnet(input) {
       if (m) {
         const h = m[1];
         if (/^[0-9a-f]{40}$/i.test(h)) out.btih = h.toLowerCase();
-        else if (/^[a-z2-7]{32}$/i.test(h)) { out.btih = b32ToHex(h); out.b32 = h.toUpperCase(); }
+        else if (/^[a-z2-7]{32}$/i.test(h)) out.btih = b32ToHex(h);
         else throw new Error("The info hash in this link is malformed. It should be 40 hex or 32 base32 characters.");
       }
       const mh = val.match(/^urn:btmh:([0-9a-f]+)$/i);
@@ -379,10 +456,16 @@ function parseMagnet(input) {
   return out;
 }
 const withExtra = (list, on) => on ? list.concat(PUBLIC_TRACKERS.filter(t => !list.includes(t))) : list;
+/* BEP 19 web seed → direct URL for one file. filePath includes the torrent name for multi-file torrents. */
+function webSeedUrl(ws, filePath, multi) {
+  const enc = p => p.split("/").map(encodeURIComponent).join("/");
+  if (ws.endsWith("/")) return ws + enc(filePath);
+  return multi ? ws + "/" + enc(filePath) : ws;
+}
 
 /* ---------- UI helpers ---------- */
 let toastT;
-function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1800); }
+function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 2000); }
 async function copy(text, node) {
   try { await navigator.clipboard.writeText(text); toast("Copied"); }
   catch {
@@ -392,23 +475,36 @@ async function copy(text, node) {
 }
 function metaList(rows) {
   const dl = el("dl", { class: "meta" });
-  for (const [k, v, mono] of rows) { if (v == null || v === "") continue; dl.append(el("dt", { text: k }), typeof v === "string" ? el("dd", { class: mono ? "mono" : "", text: v }) : el("dd", {}, v)); }
+  for (const [k, v, mono] of rows) { if (v == null || v === "") continue; dl.append(el("dt", { text: k }), el("dd", { class: mono ? "mono" : "", text: v })); }
   return dl;
 }
-function ulist(items, cls) { const u = el("ul", { class: "list " + (cls || "") }); items.forEach(t => u.append(el("li", { text: t }))); return u; }
+function ulist(items) { const u = el("ul", { class: "list" }); items.forEach(t => u.append(el("li", { text: t }))); return u; }
 function msg(kind, ...kids) { return el("div", { class: "msg " + kind }, ...kids); }
+function loadScript(src, globalName) {
+  return new Promise((res, rej) => {
+    if (window[globalName]) return res();
+    const s = document.createElement("script"); s.src = src;
+    s.onload = () => window[globalName] ? res() : rej(new Error("Loaded, but the library didn't start."));
+    s.onerror = () => rej(new Error("Couldn't load a required library. Check your connection and try again."));
+    document.head.append(s);
+  });
+}
+function canPeer() {
+  if (typeof RTCPeerConnection === "undefined") return false;
+  try { const pc = new RTCPeerConnection(); pc.close(); return true; } catch { return false; }
+}
 
 /* ---------- Tabs ---------- */
+const MODES = ["magnet", "torrent", "account"];
 function setMode(mode) {
   document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.mode === mode)));
-  $("#panel-torrent").hidden = mode !== "torrent";
-  $("#panel-magnet").hidden = mode !== "magnet";
+  for (const m of MODES) $("#panel-" + m).hidden = m !== mode;
 }
 document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
 
-/* ---------- Torrent → Magnet panel ---------- */
+/* ================= Torrent → Magnet ================= */
 const tResults = $("#t-results");
-let tItems = []; // {fileName, data|error, example}
+let tItems = [];
 function magnetFor(d) {
   return buildMagnet({ ...d, trackers: withExtra($("#t-trackers").checked ? d.trackers : [], $("#t-extra").checked) });
 }
@@ -422,10 +518,15 @@ function renderTorrentResults() {
     if (it.error) { box.append(msg("err", it.error)); tResults.append(box); continue; }
     const d = it.data, mag = magnetFor(d);
     const out = el("div", { class: "out", text: mag });
-    const copyBtn = el("button", { class: "btn primary", text: "Copy magnet link" });
+    const copyBtn = el("button", { class: "btn primary", type: "button", text: "Copy magnet link" });
     copyBtn.addEventListener("click", () => copy(mag, out));
+    const streamBtn = el("button", { class: "btn", type: "button", text: "Stream or download" });
+    streamBtn.addEventListener("click", () => {
+      mInput.value = buildMagnet({ ...d, trackers: withExtra(d.trackers, true) });
+      setMode("magnet"); renderMagnet(false); window.scrollTo({ top: 0, behavior: "smooth" });
+    });
     const open = el("a", { class: "btn", href: mag, text: "Open in torrent app" });
-    box.append(out, el("div", { class: "row" }, copyBtn, open));
+    box.append(out, el("div", { class: "row" }, copyBtn, streamBtn, open));
     const hashBits = [];
     if (d.btih) hashBits.push(["Info hash (v1)", d.btih, true]);
     if (d.btmh) hashBits.push(["Info hash (v2)", d.btmh.slice(4), true]);
@@ -435,13 +536,13 @@ function renderTorrentResults() {
       ["Version", d.btih && d.btmh ? "Hybrid v1 + v2" : d.btmh ? "v2 only" : "v1"],
       ["Size", fmtSize(d.size)],
       ["Files", d.files.length > 1 ? d.files.length + " files" : null],
-      ["Piece size", d.pieceLength ? fmtSize(d.pieceLength).split(" (")[0] : null],
+      ["Piece size", d.pieceLength ? fmtBytes(d.pieceLength) : null],
       ["Private", d.private ? "Yes — trackers only, no DHT" : null],
       ["Created", d.created ? d.created.toLocaleString() : null],
       ["Created by", d.createdBy],
       ["Comment", d.comment]
     ]));
-    if (d.files.length > 1) box.append(el("details", {}, el("summary", { text: "File list" }), el("div", { class: "files" }, ulist(d.files.map(f => f.path + "  ·  " + fmtSize(f.length).split(" (")[0])))));
+    if (d.files.length > 1) box.append(el("details", {}, el("summary", { text: "File list" }), el("div", { class: "files-scroll" }, ulist(d.files.map(f => f.path + "  ·  " + fmtBytes(f.length))))));
     if (d.trackers.length) box.append(el("details", {}, el("summary", { text: d.trackers.length + " tracker" + (d.trackers.length > 1 ? "s" : "") }), ulist(d.trackers)));
     tResults.append(box);
   }
@@ -454,8 +555,7 @@ async function handleFiles(fileList) {
   for (const f of files) {
     try {
       if (f.size > 50 * 1024 * 1024) throw new Error("This file is over 50 MB, which is far too large for a .torrent. Did you pick the downloaded content instead?");
-      const data = await parseTorrent(new Uint8Array(await f.arrayBuffer()));
-      tItems.push({ fileName: f.name, data });
+      tItems.push({ fileName: f.name, data: await parseTorrent(new Uint8Array(await f.arrayBuffer())) });
     } catch (e) { tItems.push({ fileName: f.name, error: e.message }); }
   }
   renderTorrentResults();
@@ -468,12 +568,11 @@ fileInput.addEventListener("change", () => { handleFiles(fileInput.files); fileI
 ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
 drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
 document.addEventListener("dragover", e => e.preventDefault());
-document.addEventListener("drop", e => { if (!drop.contains(e.target)) { e.preventDefault(); setMode("torrent"); handleFiles(e.dataTransfer.files); } });
+document.addEventListener("drop", e => { if (!drop.contains(e.target) && e.dataTransfer.files.length) { e.preventDefault(); setMode("torrent"); handleFiles(e.dataTransfer.files); } });
 $("#t-trackers").addEventListener("change", renderTorrentResults);
 $("#t-extra").addEventListener("change", renderTorrentResults);
 $("#t-copy-all").addEventListener("click", () => copy(tItems.filter(i => i.data).map(i => magnetFor(i.data)).join("\n")));
 
-/* Example .torrent built in-page so the panel opens with a worked result */
 (async () => {
   const pieces = new Uint8Array(20); for (let k = 0; k < 20; k++) pieces[k] = (k * 37 + 11) & 255;
   const sample = bencode({
@@ -485,20 +584,23 @@ $("#t-copy-all").addEventListener("click", () => copy(tItems.filter(i => i.data)
   try { tItems = [{ fileName: "example-dataset.torrent", data: await parseTorrent(sample), example: true }]; renderTorrentResults(); } catch {}
 })();
 
-/* ---------- Magnet → Torrent panel ---------- */
+/* ================= Magnet → Stream / Download ================= */
 const mInput = $("#m-input"), mResults = $("#m-results");
-let fetchState = null; // { client, timer }
-function stopFetch() {
-  if (!fetchState) return;
-  clearTimeout(fetchState.timer); clearInterval(fetchState.tick);
-  try { fetchState.client.destroy(); } catch {}
-  fetchState = null;
+let session = null; // { client, torrent, tick, blobUrls[] }
+
+function stopSession() {
+  if (!session) return;
+  clearInterval(session.tick);
+  try { session.client.destroy(); } catch {}
+  session.blobUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch {} });
+  session = null;
 }
+
 function renderMagnet(example) {
-  stopFetch();
+  stopSession();
   mResults.replaceChildren();
   const raw = mInput.value.trim();
-  if (!raw) { mResults.append(msg("info", "Paste a magnet link above to see what's inside it.")); return; }
+  if (!raw) { mResults.append(msg("info", "Paste a magnet link above to see what's inside it, then stream or download its files.")); return; }
   let m;
   try { m = parseMagnet(raw); } catch (e) { mResults.append(msg("err", e.message)); return; }
   const trackers = withExtra(m.trackers, $("#m-extra").checked);
@@ -507,6 +609,16 @@ function renderMagnet(example) {
   const head = el("div", { class: "row" }, el("span", { class: "fname", text: m.name || "Unnamed torrent" }));
   if (example) head.append(el("span", { class: "tag", text: "Example" }));
   box.append(head);
+
+  /* Primary actions */
+  const loadBtn = el("button", { class: "btn stream", type: "button", text: "▶ Stream video" });
+  const dlBtn = el("button", { class: "btn primary", type: "button", text: "Download files" });
+  const actions = el("div", { class: "row" }, loadBtn, dlBtn);
+  box.append(actions);
+  const sessionArea = el("div", { class: "session", hidden: "" });
+  box.append(sessionArea);
+  loadBtn.addEventListener("click", () => startSession(m, trackers, sessionArea, actions, "stream"));
+  dlBtn.addEventListener("click", () => startSession(m, trackers, sessionArea, actions, "list"));
 
   box.append(metaList([
     ["Info hash (hex)", m.btih, true],
@@ -519,83 +631,308 @@ function renderMagnet(example) {
   if (trackers.length) box.append(el("details", {}, el("summary", { text: trackers.length + " tracker" + (trackers.length > 1 ? "s" : "") }), ulist(trackers)));
 
   const out = el("div", { class: "out", text: clean });
-  const cBtn = el("button", { class: "btn", text: "Copy cleaned magnet" });
+  const cBtn = el("button", { class: "btn small", type: "button", text: "Copy cleaned magnet" });
   cBtn.addEventListener("click", () => copy(clean, out));
-  box.append(el("div", { class: "field", style: "display:grid;gap:6px" }, el("span", { class: "tag", style: "justify-self:start", text: "Cleaned link" }), out), el("div", { class: "row" }, cBtn));
-
-  /* .torrent fetch */
-  const fetchArea = el("div", { style: "display:grid;gap:10px" });
-  const fBtn = el("button", { class: "btn primary", text: "Get .torrent file" });
-  fetchArea.append(el("div", { class: "row" }, fBtn));
-  fBtn.addEventListener("click", () => fetchTorrent(m, trackers, fetchArea, fBtn));
-  box.append(fetchArea);
+  box.append(el("details", {}, el("summary", { text: "Cleaned magnet link" }), el("div", { style: "display:grid;gap:8px;margin-top:8px" }, out, el("div", { class: "row" }, cBtn))));
   mResults.append(box);
 }
 
-function loadScript(src) {
-  return new Promise((res, rej) => {
-    if (window.WebTorrent) return res();
-    const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("Couldn't load the torrent engine. Check your connection and try again.")); document.head.append(s);
-  });
-}
-function saveFile(bytes, filename, area) {
-  const blob = new Blob([bytes], { type: "application/x-bittorrent" });
-  const url = URL.createObjectURL(blob);
-  const a = el("a", { href: url, download: filename, class: "btn primary", text: "Save " + filename });
-  area.append(a);
-  try { a.click(); } catch {}
-}
-function canPeer() {
-  if (typeof RTCPeerConnection === "undefined") return false;
-  try { const pc = new RTCPeerConnection(); pc.close(); return true; } catch { return false; }
-}
-async function fetchTorrent(m, trackers, area, btn) {
-  stopFetch();
-  area.querySelectorAll(".msg,.progress,a").forEach(n => n.remove());
-  if (!m.btih) { area.append(msg("err", "Fetching needs a v1 (btih) info hash, and this link only has a v2 hash.")); return; }
-  if (!canPeer()) {
-    area.append(msg("info", "This view can't open peer connections, so it can't fetch .torrent files. ", el("a", { href: STANDALONE_URL, target: "_blank", rel: "noopener", text: "Open the standalone converter" }), " to fetch it there."));
+function startSession(m, trackers, area, actions, intent) {
+  area.hidden = false;
+  if (session) { // already running: just act on the intent
+    if (intent === "stream") autoStream();
+    area.scrollIntoView({ behavior: "smooth", block: "nearest" });
     return;
   }
-  btn.disabled = true;
-  const status = msg("info", "Loading the torrent engine…"), bar = el("div", { class: "progress" }, el("i"));
-  area.append(bar, status);
-  try { await loadScript(WEBTORRENT_SRC); } catch (e) { bar.remove(); status.className = "msg err"; status.textContent = e.message; btn.disabled = false; return; }
-
-  const client = new window.WebTorrent();
-  const started = Date.now(), LIMIT = 90;
-  fetchState = { client };
-  client.on("error", err => finish("err", "Torrent engine error: " + (err && err.message || err)));
-  const mag = buildMagnet({ btih: m.btih, name: m.name, trackers: trackers.concat(WS_TRACKERS.filter(t => !trackers.includes(t))), webSeeds: m.webSeeds });
-  let torrent;
-  try { torrent = client.add(mag, { destroyStoreOnDestroy: true }); } catch (e) { finish("err", e.message); return; }
-  status.textContent = "Looking for browser peers that have this torrent…";
-  fetchState.tick = setInterval(() => {
-    const secs = Math.round((Date.now() - started) / 1000);
-    status.textContent = "Looking for browser peers… " + (torrent.numPeers || 0) + " connected · " + secs + "s";
-  }, 1000);
-  fetchState.timer = setTimeout(() => finish("err", "No browser peers sent the metadata within " + LIMIT + " seconds. This torrent is probably seeded only by desktop clients. Open the magnet link in qBittorrent or Transmission and export the .torrent from there."), LIMIT * 1000);
-  torrent.on("metadata", () => {
-    const bytes = torrent.torrentFile;
-    const filename = (torrent.name || m.btih).replace(/[\\/:*?"<>|]+/g, "_") + ".torrent";
-    finish("ok", "Got the metadata for " + (torrent.name || "this torrent") + " (" + fmtSize(torrent.length).split(" (")[0] + ").", () => saveFile(bytes, filename, area));
-  });
-  function finish(kind, text, after) {
-    stopFetch(); bar.remove(); btn.disabled = false;
-    status.className = "msg " + kind; status.textContent = text;
-    if (after) after();
+  area.replaceChildren();
+  if (!m.btih) { area.append(msg("err", "Streaming needs a v1 (btih) info hash, and this link only has a v2 hash.")); return; }
+  if (!canPeer()) {
+    area.append(msg("info", "This view can't connect to peers, so streaming and downloads are off here. ", el("a", { href: STANDALONE_URL, target: "_blank", rel: "noopener", text: "Open the full converter" }), " to stream or download."));
+    return;
   }
+  const status = msg("info", "Starting…");
+  const bar = el("div", { class: "progress busy" }, el("i"));
+  const stats = el("div", { class: "stats" });
+  const player = el("div", { class: "player", hidden: "" });
+  const files = el("div", { class: "filelist", hidden: "" });
+  const extras = el("div", { class: "row", hidden: "" });
+  const stopBtn = el("button", { class: "btn small", type: "button", text: "Stop" });
+  area.append(status, bar, stats, player, files, extras, el("div", { class: "row" }, stopBtn));
+  stopBtn.addEventListener("click", () => { stopSession(); area.replaceChildren(msg("info", "Stopped. Tap Stream video or Download files to start again.")); });
+
+  session = { client: null, torrent: null, tick: null, blobUrls: [], intent };
+  const mySession = session;
+  loadScript(WEBTORRENT_SRC, "WebTorrent").then(() => {
+    if (session !== mySession) return;
+    const client = new window.WebTorrent();
+    session.client = client;
+    client.on("error", err => fail("Torrent engine error: " + (err && err.message || err)));
+    const mag = buildMagnet({ btih: m.btih, name: m.name, trackers: trackers.concat(WS_TRACKERS.filter(t => !trackers.includes(t))), webSeeds: m.webSeeds });
+    let torrent;
+    try { torrent = client.add(mag, { destroyStoreOnDestroy: true }); } catch (e) { fail(e.message); return; }
+    session.torrent = torrent;
+    const started = Date.now();
+    status.textContent = "Looking for peers that have this torrent…";
+    torrent.on("error", err => fail(String(err && err.message || err)));
+    torrent.on("metadata", () => onMetadata(torrent, m, { status, bar, player, files, extras }));
+    session.tick = setInterval(() => {
+      const secs = Math.round((Date.now() - started) / 1000);
+      stats.replaceChildren(
+        el("span", {}, "Peers ", el("b", { text: String(torrent.numPeers || 0) })),
+        el("span", {}, "↓ ", el("b", { text: fmtBytes(torrent.downloadSpeed || 0) + "/s" })),
+        el("span", {}, "Done ", el("b", { text: torrent.length ? (torrent.downloaded / torrent.length * 100).toFixed(1) + "%" : "–" })),
+        el("span", {}, "Time ", el("b", { text: secs + "s" }))
+      );
+      if (!torrent.metadata && secs === 60) {
+        status.className = "msg warn";
+        status.textContent = "Still waiting after a minute. This torrent may be shared only by desktop apps, which web pages can't reach. You can keep waiting, or open the magnet link in qBittorrent or Transmission.";
+      }
+      if (torrent.files) for (const f of torrent.files) f._ui && f._ui.update();
+    }, 1000);
+  }).catch(e => fail(e.message));
+
+  function fail(text) {
+    if (session !== mySession) return;
+    clearInterval(mySession.tick);
+    bar.remove(); status.className = "msg err"; status.textContent = text;
+  }
+}
+
+function onMetadata(torrent, m, ui) {
+  const { status, bar, player, files, extras } = ui;
+  bar.remove();
+  status.className = "msg ok";
+  status.textContent = "Found " + torrent.files.length + " file" + (torrent.files.length > 1 ? "s" : "") + " · " + fmtBytes(torrent.length) + ". Choose what to stream or download.";
+  // Only fetch what the person asks for.
+  const onlyWanted = () => {
+    try { torrent.deselect(0, torrent.pieces.length - 1, false); } catch {}
+    torrent.files.forEach(f => { try { f._wanted ? f.select() : f.deselect(); } catch {} });
+  };
+  onlyWanted();
+  torrent.once("ready", onlyWanted);
+
+  const multi = torrent.files.length > 1;
+  files.hidden = false; files.replaceChildren();
+  const sorted = torrent.files.slice().sort((a, b) => (VIDEO_EXT.test(b.name) - VIDEO_EXT.test(a.name)) || (b.length - a.length));
+  for (const f of sorted) files.append(fileRow(f, torrent, m, multi, player));
+
+  extras.hidden = false; extras.replaceChildren();
+  const tBtn = el("button", { class: "btn small", type: "button", text: "Save .torrent file" });
+  tBtn.addEventListener("click", () => {
+    const url = URL.createObjectURL(new Blob([torrent.torrentFile], { type: "application/x-bittorrent" }));
+    session && session.blobUrls.push(url);
+    const name = (torrent.name || m.btih).replace(/[\\/:*?"<>|]+/g, "_") + ".torrent";
+    const a = el("a", { class: "btn small primary", href: url, download: name, text: "Save " + name });
+    tBtn.replaceWith(a); a.click();
+  });
+  extras.append(tBtn);
+  if (session && session.intent === "stream") autoStream();
+}
+
+function autoStream() {
+  if (!session || !session.torrent || !session.torrent.files) return;
+  const target = session.torrent.files.filter(f => VIDEO_EXT.test(f.name)).sort((a, b) => b.length - a.length)[0]
+    || session.torrent.files.filter(f => AUDIO_EXT.test(f.name))[0];
+  if (target && target._ui) target._ui.stream();
+  else if (session.torrent.metadata) toast("No video or audio files in this torrent");
+}
+
+function fileRow(file, torrent, m, multi, player) {
+  const isVideo = VIDEO_EXT.test(file.name), isAudio = AUDIO_EXT.test(file.name);
+  const row = el("div", { class: "file" });
+  row.append(el("div", { class: "head" }, el("span", { class: "name", text: file.path || file.name }), el("span", { class: "size", text: fmtBytes(file.length) })));
+  const prog = el("div", { class: "progress", hidden: "" }, el("i"));
+  const note = el("div", { class: "size", hidden: "" });
+  const btns = el("div", { class: "row" });
+  row.append(btns, prog, note);
+
+  let streamBtn = null;
+  if (isVideo || isAudio) {
+    streamBtn = el("button", { class: "btn small stream", type: "button", text: isVideo ? "▶ Stream video" : "▶ Play audio" });
+    btns.append(streamBtn);
+  }
+  const dl = el("button", { class: "btn small primary", type: "button", text: "Download" });
+  btns.append(dl);
+
+  // Direct links from web seeds
+  const directs = (m.webSeeds || []).filter(w => /^https?:\/\//i.test(w)).map(w => webSeedUrl(w, file.path, multi));
+  if (directs.length) {
+    const url = directs[0];
+    const dText = el("div", { class: "direct", text: url });
+    const copyD = el("button", { class: "btn small", type: "button", text: "Copy direct link" });
+    copyD.addEventListener("click", () => copy(url, dText));
+    btns.append(copyD, el("a", { class: "btn small", href: url, target: "_blank", rel: "noopener", text: "Open direct link" }));
+    row.append(dText);
+  }
+
+  let downloading = false, saved = false;
+  const ui = {
+    update() {
+      if (!downloading && !file._streaming) return;
+      prog.hidden = false;
+      prog.firstChild.style.width = (file.progress * 100).toFixed(1) + "%";
+      note.hidden = false;
+      note.textContent = fmtBytes(file.downloaded) + " of " + fmtBytes(file.length) + " · " + (file.progress * 100).toFixed(1) + "%";
+      if (downloading && !saved && file.progress >= 1) finishDownload();
+    },
+    stream() {
+      if (!streamBtn) return;
+      file._wanted = true; file.select();
+      file._streaming = true;
+      player.hidden = false; player.replaceChildren();
+      const media = el(isVideo ? "video" : "audio", { controls: "", autoplay: "", playsinline: "" });
+      const now = el("div", { class: "now", text: "Now playing: " + file.name });
+      player.append(media, now);
+      player.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      file.renderTo(media, { autoplay: true, controls: true }, err => {
+        if (err) {
+          now.textContent = "Your browser can't stream " + file.name.split(".").pop().toUpperCase() + " files. Use Download, then play it in an app like VLC.";
+          now.style.color = "var(--north)";
+        }
+      });
+      ui.update();
+    }
+  };
+  file._ui = ui;
+  if (streamBtn) streamBtn.addEventListener("click", ui.stream);
+
+  function finishDownload() {
+    saved = true;
+    dl.disabled = true; dl.textContent = "Preparing…";
+    file.getBlobURL((err, url) => {
+      if (err) { dl.disabled = false; dl.textContent = "Download"; note.textContent = "Couldn't build the file: " + err.message; return; }
+      session && session.blobUrls.push(url);
+      const a = el("a", { class: "btn small primary", href: url, download: file.name, text: "Save " + file.name });
+      dl.replaceWith(a); a.click();
+      note.textContent = "Ready · " + fmtBytes(file.length) + ". If the save didn't start, tap Save.";
+    });
+  }
+  dl.addEventListener("click", () => {
+    if (downloading) return;
+    if (file.length > 2 * 1024 ** 3) toast("Large file: your browser holds it in memory until it's saved");
+    downloading = true; dl.disabled = true; dl.textContent = "Downloading…";
+    file._wanted = true; file.select();
+    if (file.done || file.progress >= 1) finishDownload(); else ui.update();
+    file.on && file.on("done", () => { if (!saved) finishDownload(); });
+  });
+  return row;
 }
 
 mInput.addEventListener("input", () => renderMagnet(false));
 $("#m-extra").addEventListener("change", () => renderMagnet(mInput.value === SAMPLE_MAGNET));
 $("#m-clear").addEventListener("click", () => { mInput.value = ""; renderMagnet(false); mInput.focus(); });
 mInput.addEventListener("focus", () => { if (mInput.value === SAMPLE_MAGNET) mInput.select(); });
-
+window.addEventListener("pagehide", stopSession);
 mInput.value = SAMPLE_MAGNET;
 renderMagnet(true);
+
+/* ================= Account (Supabase) ================= */
+const acct = { mode: "login", sb: null, user: null };
+const authMsg = $("#auth-msg"), chip = $("#acct-chip");
+function setAuthMsg(kind, text) { authMsg.replaceChildren(text ? msg(kind, text) : ""); }
+function setAuthMode(mode) {
+  acct.mode = mode;
+  const signup = mode === "signup", reset = mode === "reset";
+  $("#seg-login").setAttribute("aria-pressed", String(mode === "login"));
+  $("#seg-signup").setAttribute("aria-pressed", String(signup));
+  $("#auth-title").textContent = signup ? "Create an account" : reset ? "Reset your password" : "Log in";
+  $("#auth-submit").textContent = signup ? "Sign up" : reset ? "Send reset link" : "Log in";
+  $("#auth-pass-wrap").hidden = reset;
+  $("#auth-pass2-wrap").hidden = !signup;
+  $("#auth-pass").autocomplete = signup ? "new-password" : "current-password";
+  $("#auth-forgot").textContent = reset ? "Back to log in" : "Forgot your password?";
+  $("#auth-forgot").hidden = signup;
+  setAuthMsg();
+}
+$("#seg-login").addEventListener("click", () => setAuthMode("login"));
+$("#seg-signup").addEventListener("click", () => setAuthMode("signup"));
+$("#auth-forgot").addEventListener("click", () => setAuthMode(acct.mode === "reset" ? "login" : "reset"));
+chip.addEventListener("click", () => setMode("account"));
+
+function showUser(user) {
+  acct.user = user;
+  $("#acct-out").hidden = !user;
+  $("#acct-in").hidden = !!user;
+  if (user) $("#acct-email").textContent = user.email;
+  chip.textContent = user ? user.email : "Log in";
+}
+async function getSupabase() {
+  if (acct.sb) return acct.sb;
+  if (!CFG.supabaseUrl || !CFG.supabaseAnonKey) throw new Error("Accounts aren't set up on this site yet. The site owner needs to add the Supabase keys to config.js.");
+  await loadScript(SUPABASE_SRC, "supabase");
+  acct.sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+  acct.sb.auth.onAuthStateChange((event, s) => {
+    showUser(s && s.user || null);
+    if (event === "PASSWORD_RECOVERY") { setMode("account"); setAuthMsg("info", "Choose a new password below."); promptNewPassword(); }
+  });
+  return acct.sb;
+}
+function promptNewPassword() {
+  $("#acct-out").hidden = true; $("#acct-in").hidden = false;
+  acct.mode = "newpass";
+  $("#auth-title").textContent = "Set a new password";
+  $("#auth-submit").textContent = "Save password";
+  $("#auth-pass-wrap").hidden = false; $("#auth-pass2-wrap").hidden = false; $("#auth-forgot").hidden = true;
+}
+const friendly = e => {
+  const t = (e && e.message) || String(e);
+  if (/invalid login credentials/i.test(t)) return "That email and password don't match an account.";
+  if (/email not confirmed/i.test(t)) return "Confirm your email first. Check your inbox for the link we sent.";
+  if (/already registered/i.test(t)) return "An account with this email already exists. Log in instead.";
+  if (/failed to fetch|networkerror/i.test(t)) return "Couldn't reach the account service. Check your connection and try again.";
+  return t;
+};
+
+$("#auth-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const email = $("#auth-email").value.trim(), pass = $("#auth-pass").value, pass2 = $("#auth-pass2").value;
+  const mode = acct.mode;
+  if (mode !== "newpass" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setAuthMsg("err", "Enter a valid email address.");
+  if (mode !== "reset" && pass.length < 6) return setAuthMsg("err", "Passwords need at least 6 characters.");
+  if ((mode === "signup" || mode === "newpass") && pass !== pass2) return setAuthMsg("err", "The two passwords don't match.");
+  const btn = $("#auth-submit"), label = btn.textContent;
+  btn.disabled = true; btn.textContent = "Working…"; setAuthMsg();
+  try {
+    const sb = await getSupabase();
+    const back = location.origin + location.pathname;
+    if (mode === "login") {
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (error) throw error;
+      toast("Logged in");
+    } else if (mode === "signup") {
+      const { data, error } = await sb.auth.signUp({ email, password: pass, options: { emailRedirectTo: back } });
+      if (error) throw error;
+      if (!data.session) setAuthMsg("ok", "Account created. Check " + email + " for a confirmation link, then log in.");
+      else toast("Account created");
+    } else if (mode === "reset") {
+      const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: back });
+      if (error) throw error;
+      setAuthMsg("ok", "If an account exists for " + email + ", a reset link is on its way.");
+    } else if (mode === "newpass") {
+      const { error } = await sb.auth.updateUser({ password: pass });
+      if (error) throw error;
+      toast("Password updated"); setAuthMode("login");
+      const { data } = await sb.auth.getUser(); showUser(data && data.user || null);
+    }
+    $("#auth-pass").value = ""; $("#auth-pass2").value = "";
+  } catch (err) { setAuthMsg("err", friendly(err)); }
+  finally { btn.disabled = false; btn.textContent = acct.mode === mode ? label : btn.textContent; }
+});
+$("#acct-logout").addEventListener("click", async () => {
+  try { const sb = await getSupabase(); await sb.auth.signOut(); toast("Logged out"); } catch (e) { toast(friendly(e)); }
+});
+
+setAuthMode("login");
+showUser(null);
+if (CFG.supabaseUrl && CFG.supabaseAnonKey) {
+  getSupabase().then(sb => sb.auth.getSession()).then(({ data }) => showUser(data && data.session && data.session.user || null)).catch(() => {});
+} else {
+  setAuthMsg("info", "Accounts aren't switched on for this site yet. The owner needs to add Supabase keys to config.js.");
+}
+
 const h = (location.hash || "").slice(1);
-if (h === "torrent" || h === "magnet") setMode(h);
+if (MODES.includes(h)) setMode(h);
+if (/type=recovery|access_token=/.test(location.hash)) setMode("account");
 })();
 </script>
 </body>
