@@ -1,0 +1,602 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Magnet Link Converter</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Convert .torrent files to magnet links and magnet links to .torrent files, right in your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single centered tool column; a two-pole (N/S) mode switch on top, input card, result card below. */
+:root {
+  --bg: #eceff3;
+  --surface: #fbfcfd;
+  --sunk: #e3e8ee;
+  --ink: #15212c;
+  --muted: #586776;
+  --line: #cfd7df;
+  --north: #c7362e;
+  --south: #2553c2;
+  --ok: #1d7a4c;
+  --warn: #9a5b00;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --surface: #161f28; --sunk: #0b1015; --ink: #e5ecf2; --muted: #93a2b0; --line: #283542;
+    --north: #ff6f62; --south: #74a0ff; --ok: #4fd18f; --warn: #f0b24a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --surface: #161f28; --sunk: #0b1015; --ink: #e5ecf2; --muted: #93a2b0; --line: #283542;
+  --north: #ff6f62; --south: #74a0ff; --ok: #4fd18f; --warn: #f0b24a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--ink); }
+body {
+  font-family: var(--font-body); font-size: 15px; line-height: 1.55; margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 48px;
+}
+.wrap { max-width: 760px; margin: 0 auto; display: grid; gap: 20px; }
+header { display: grid; gap: 8px; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: clamp(30px, 6vw, 44px); line-height: 1.05; margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+h1 .n { color: var(--north); } h1 .s { color: var(--south); }
+.lede { margin: 0; color: var(--muted); max-width: 60ch; }
+.poles { display: flex; height: 4px; width: 96px; border-radius: 2px; overflow: hidden; }
+.poles i { flex: 1; } .poles i:first-child { background: var(--north); } .poles i:last-child { background: var(--south); }
+
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.modes button {
+  font: 600 15px/1.2 var(--font-body); color: var(--muted); background: transparent; border: 0; padding: 14px 12px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px; border-bottom: 3px solid transparent;
+}
+.modes button + button { border-left: 1px solid var(--line); }
+.modes button[aria-selected="true"] { color: var(--ink); background: var(--sunk); }
+.modes button[data-mode="torrent"][aria-selected="true"] { border-bottom-color: var(--north); }
+.modes button[data-mode="magnet"][aria-selected="true"] { border-bottom-color: var(--south); }
+.modes .arrow { font-family: var(--font-mono); font-weight: 500; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0; }
+.card h2 { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tag { font: 500 11px/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.08em; padding: 5px 8px; border-radius: 999px; background: var(--sunk); color: var(--muted); }
+.tag.ok { color: var(--ok); } .tag.warn { color: var(--warn); }
+
+.drop {
+  border: 2px dashed var(--line); border-radius: 10px; padding: 28px 16px; text-align: center; cursor: pointer; display: grid; gap: 6px;
+  background: var(--sunk); transition: border-color .15s, background .15s;
+}
+.drop:hover, .drop.over, .drop:focus-visible { border-color: var(--north); outline: none; }
+.drop strong { font-size: 16px; }
+.drop span { color: var(--muted); font-size: 13px; }
+
+label.field { display: grid; gap: 6px; font-weight: 600; font-size: 13px; color: var(--muted); }
+textarea {
+  font: 13px/1.5 var(--font-mono); color: var(--ink); background: var(--sunk); border: 1px solid var(--line); border-radius: 10px;
+  padding: 12px; width: 100%; min-height: 96px; resize: vertical; word-break: break-all;
+}
+textarea:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--south); outline-offset: 2px; }
+
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn {
+  font: 600 14px/1 var(--font-body); padding: 11px 16px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface);
+  color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.primary:hover { opacity: .9; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.check { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--south); }
+
+.out { font: 13px/1.5 var(--font-mono); background: var(--sunk); border: 1px solid var(--line); border-radius: 10px; padding: 12px; word-break: break-all; min-width: 0; }
+dl.meta { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; font-size: 14px; }
+dl.meta dt { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; padding-top: 2px; }
+dl.meta dd { margin: 0; min-width: 0; word-break: break-all; }
+dl.meta dd.mono { font-family: var(--font-mono); font-size: 13px; }
+@media (max-width: 520px) { dl.meta { grid-template-columns: 1fr; gap: 2px; } dl.meta dd { margin-bottom: 8px; } }
+ul.list { margin: 0; padding-left: 18px; font-family: var(--font-mono); font-size: 12.5px; display: grid; gap: 2px; }
+.files { max-height: 180px; overflow: auto; }
+
+.result { border-top: 1px solid var(--line); padding-top: 14px; display: grid; gap: 12px; }
+.result:first-of-type { border-top: 0; padding-top: 0; }
+.fname { font-weight: 600; word-break: break-all; }
+.msg { font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--sunk); border-left: 3px solid var(--muted); }
+.msg.err { border-left-color: var(--north); }
+.msg.ok { border-left-color: var(--ok); }
+.msg.info { border-left-color: var(--south); }
+.msg a { color: var(--south); }
+.progress { height: 6px; background: var(--sunk); border-radius: 3px; overflow: hidden; }
+.progress i { display: block; height: 100%; width: 30%; background: var(--south); animation: slide 1.4s ease-in-out infinite; }
+@keyframes slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .progress i { animation: none; width: 100%; opacity: .5; } }
+
+.faq { display: grid; gap: 10px; font-size: 14px; color: var(--muted); }
+.faq h3 { font-family: var(--font-display); font-size: 16px; color: var(--ink); margin: 0; }
+.faq p { margin: 0; max-width: 65ch; }
+footer { font-size: 12.5px; color: var(--muted); text-align: center; }
+.toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; z-index: 20; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="poles" aria-hidden="true"><i></i><i></i></div>
+    <h1><span class="n">Torrent</span> ⇄ <span class="s">Magnet</span> Converter</h1>
+    <p class="lede">Turn .torrent files into magnet links, or magnet links into .torrent files. Files are read in your browser and never uploaded anywhere.</p>
+  </header>
+
+  <div class="modes" role="tablist" aria-label="Conversion direction">
+    <button role="tab" id="tab-torrent" data-mode="torrent" aria-selected="false" aria-controls="panel-torrent">.torrent <span class="arrow">→</span> magnet</button>
+    <button role="tab" id="tab-magnet" data-mode="magnet" aria-selected="true" aria-controls="panel-magnet">magnet <span class="arrow">→</span> .torrent</button>
+  </div>
+
+  <!-- TORRENT → MAGNET -->
+  <section id="panel-torrent" role="tabpanel" aria-labelledby="tab-torrent" hidden>
+    <div class="card">
+      <h2>Convert .torrent files</h2>
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose .torrent files">
+        <strong>Drop .torrent files here</strong>
+        <span>or tap to choose. Several files at once is fine.</span>
+      </div>
+      <input type="file" id="file" accept=".torrent,application/x-bittorrent" multiple hidden>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="t-trackers" checked> Include trackers</label>
+        <label class="check"><input type="checkbox" id="t-extra"> Add public trackers</label>
+      </div>
+      <div id="t-results"></div>
+      <div class="row" id="t-all-row" hidden>
+        <button class="btn" id="t-copy-all">Copy all magnet links</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- MAGNET → TORRENT -->
+  <section id="panel-magnet" role="tabpanel" aria-labelledby="tab-magnet">
+    <div class="card">
+      <h2>Convert a magnet link</h2>
+      <label class="field" for="m-input">Magnet link or info hash
+        <textarea id="m-input" spellcheck="false" autocomplete="off" placeholder="magnet:?xt=urn:btih:…"></textarea>
+      </label>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="m-extra"> Add public trackers</label>
+        <button class="btn" id="m-clear">Clear</button>
+      </div>
+      <div id="m-results"></div>
+    </div>
+  </section>
+
+  <div class="card faq">
+    <h3>How it works</h3>
+    <p><b>.torrent → magnet</b> happens instantly. The page decodes the file, hashes its <code>info</code> section (SHA-1 for v1, SHA-256 for v2), and builds the link with the name, size, trackers and web seeds.</p>
+    <p><b>Magnet → .torrent</b> needs the torrent's metadata, which only peers have. The page connects to browser-capable (WebRTC) peers and saves the file as soon as the metadata arrives. Torrents seeded only by desktop clients may never answer; in that case, open the magnet link in a desktop client such as qBittorrent and export the .torrent from there.</p>
+    <p>Only convert torrents you have the right to share.</p>
+  </div>
+  <footer>Runs entirely in your browser · <a href="https://github.com/Malsaalim/Magnet-Link-Convertir" style="color:inherit">Source on GitHub</a></footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+"use strict";
+const STANDALONE_URL = "https://malsaalim.github.io/Magnet-Link-Convertir/";
+const WEBTORRENT_SRC = "https://cdn.jsdelivr.net/npm/webtorrent@1.9.7/webtorrent.min.js";
+const PUBLIC_TRACKERS = [
+  "udp://tracker.opentrackr.org:1337/announce",
+  "udp://open.demonii.com:1337/announce",
+  "udp://open.stealth.si:80/announce",
+  "udp://exodus.desync.com:6969/announce",
+  "udp://tracker.torrent.eu.org:451/announce",
+  "wss://tracker.openwebtorrent.com",
+  "wss://tracker.webtorrent.dev",
+  "wss://tracker.btorrent.xyz"
+];
+const WS_TRACKERS = PUBLIC_TRACKERS.filter(t => t.startsWith("wss://"));
+const SAMPLE_MAGNET = "magnet:?xt=urn:btih:dd8255ecdc7ca55fb0bbf81323d87062db1f6d1c&dn=Big+Buck+Bunny&tr=udp%3A%2F%2Fexplodie.org%3A6969&tr=udp%3A%2F%2Ftracker.coppersurfer.tk%3A6969&tr=udp%3A%2F%2Ftracker.empire-js.us%3A1337&tr=udp%3A%2F%2Ftracker.leechers-paradise.org%3A6969&tr=udp%3A%2F%2Ftracker.opentrackr.org%3A1337&tr=wss%3A%2F%2Ftracker.btorrent.xyz&tr=wss%3A%2F%2Ftracker.fastcast.nz&tr=wss%3A%2F%2Ftracker.openwebtorrent.com&ws=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2F&xs=https%3A%2F%2Fwebtorrent.io%2Ftorrents%2Fbig-buck-bunny.torrent";
+
+const $ = s => document.querySelector(s);
+const el = (tag, attrs = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) n.append(k);
+  return n;
+};
+const utf8 = new TextDecoder("utf-8");
+const toStr = b => (b instanceof Uint8Array ? utf8.decode(b) : String(b));
+const hex = buf => Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, "0")).join("");
+
+/* ---------- size formatting ---------- */
+function fmtSize(n) {
+  if (n == null || isNaN(n)) return "Unknown";
+  const u = ["B", "KB", "MB", "GB", "TB", "PB"]; let i = 0, v = n;
+  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+  return (i ? v.toFixed(v < 10 ? 2 : 1) : v) + " " + u[i] + (i ? " (" + n.toLocaleString() + " bytes)" : "");
+}
+
+/* ---------- base32 <-> hex ---------- */
+const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function b32ToHex(s) {
+  let bits = "", out = "";
+  for (const c of s.toUpperCase()) { const v = B32.indexOf(c); if (v < 0) return null; bits += v.toString(2).padStart(5, "0"); }
+  for (let i = 0; i + 4 <= bits.length; i += 4) out += parseInt(bits.slice(i, i + 4), 2).toString(16);
+  return out;
+}
+function hexToB32(h) {
+  let bits = "", out = "";
+  for (const c of h) bits += parseInt(c, 16).toString(2).padStart(4, "0");
+  for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
+  return out;
+}
+
+/* ---------- bencode ---------- */
+function bdecode(buf) {
+  let i = 0, infoRange = null;
+  const fail = m => { throw new Error("This file isn't a valid .torrent (" + m + " at byte " + i + ")."); };
+  function readUntil(ch) {
+    const e = buf.indexOf(ch, i); if (e < 0) fail("unterminated value");
+    const s = String.fromCharCode(...buf.subarray(i, e)); i = e + 1; return s;
+  }
+  function next(depth) {
+    if (i >= buf.length) fail("unexpected end");
+    if (depth > 200) fail("nesting too deep");
+    const c = buf[i];
+    if (c === 0x69) { i++; const s = readUntil(0x65); if (!/^-?\d+$/.test(s)) fail("bad integer"); return Number(s); }
+    if (c === 0x6c) { i++; const a = []; while (buf[i] !== 0x65) { if (i >= buf.length) fail("unterminated list"); a.push(next(depth + 1)); } i++; return a; }
+    if (c === 0x64) {
+      i++; const o = {};
+      while (buf[i] !== 0x65) {
+        if (i >= buf.length) fail("unterminated dictionary");
+        const key = toStr(next(depth + 1));
+        const start = i;
+        o[key] = next(depth + 1);
+        if (depth === 0 && key === "info") infoRange = [start, i];
+      }
+      i++; return o;
+    }
+    if (c >= 0x30 && c <= 0x39) {
+      const len = Number(readUntil(0x3a)); if (!(len >= 0) || i + len > buf.length) fail("bad string length");
+      const s = buf.subarray(i, i + len); i += len; return s;
+    }
+    fail("unknown token");
+  }
+  const root = next(0);
+  if (!root || typeof root !== "object" || Array.isArray(root) || root instanceof Uint8Array) throw new Error("This file isn't a valid .torrent (no top-level dictionary).");
+  return { root, infoRange };
+}
+function bencode(v) {
+  const enc = new TextEncoder(), parts = [];
+  (function w(x) {
+    if (typeof x === "number") parts.push(enc.encode("i" + x + "e"));
+    else if (typeof x === "string") { const b = enc.encode(x); parts.push(enc.encode(b.length + ":"), b); }
+    else if (x instanceof Uint8Array) { parts.push(enc.encode(x.length + ":"), x); }
+    else if (Array.isArray(x)) { parts.push(enc.encode("l")); x.forEach(w); parts.push(enc.encode("e")); }
+    else { parts.push(enc.encode("d")); Object.keys(x).sort().forEach(k => { w(k); w(x[k]); }); parts.push(enc.encode("e")); }
+  })(v);
+  const total = parts.reduce((a, p) => a + p.length, 0), out = new Uint8Array(total); let o = 0;
+  for (const p of parts) { out.set(p, o); o += p.length; }
+  return out;
+}
+
+/* ---------- .torrent → info ---------- */
+async function parseTorrent(bytes) {
+  const { root, infoRange } = bdecode(bytes);
+  const info = root.info;
+  if (!infoRange || !info || typeof info !== "object") throw new Error("This file has no info section, so it can't be a .torrent.");
+  const infoBytes = bytes.subarray(infoRange[0], infoRange[1]);
+  const metaVersion = typeof info["meta version"] === "number" ? info["meta version"] : 1;
+  const hasV1 = info.pieces instanceof Uint8Array;
+  const hasV2 = metaVersion === 2;
+  const btih = hasV1 ? hex(await crypto.subtle.digest("SHA-1", infoBytes)) : null;
+  const btmh = hasV2 ? "1220" + hex(await crypto.subtle.digest("SHA-256", infoBytes)) : null;
+  const name = toStr(info["name.utf-8"] || info.name || "") || null;
+
+  const files = [];
+  if (Array.isArray(info.files)) {
+    for (const f of info.files) {
+      const p = (f["path.utf-8"] || f.path || []).map(toStr).join("/");
+      if (f.attr && toStr(f.attr).includes("p")) continue; // padding file
+      files.push({ path: p, length: f.length });
+    }
+  } else if (typeof info.length === "number") {
+    files.push({ path: name, length: info.length });
+  } else if (info["file tree"]) {
+    (function walk(node, prefix) {
+      for (const [k, v] of Object.entries(node)) {
+        if (k === "" && v && typeof v.length === "number") files.push({ path: prefix.join("/"), length: v.length });
+        else if (v && typeof v === "object" && !(v instanceof Uint8Array)) walk(v, k === "" ? prefix : prefix.concat(k));
+      }
+    })(info["file tree"], [name || ""]);
+  }
+  const size = files.reduce((a, f) => a + (f.length || 0), 0);
+
+  const trackers = [];
+  const addT = t => { const s = toStr(t).trim(); if (s && !trackers.includes(s)) trackers.push(s); };
+  if (Array.isArray(root["announce-list"])) root["announce-list"].forEach(tier => Array.isArray(tier) ? tier.forEach(addT) : addT(tier));
+  if (root.announce) addT(root.announce);
+
+  let webSeeds = [];
+  if (root["url-list"]) webSeeds = (Array.isArray(root["url-list"]) ? root["url-list"] : [root["url-list"]]).map(toStr).filter(Boolean);
+
+  return {
+    name, btih, btmh, size, files, trackers, webSeeds,
+    private: info.private === 1,
+    comment: root.comment ? toStr(root.comment) : null,
+    createdBy: root["created by"] ? toStr(root["created by"]) : null,
+    created: typeof root["creation date"] === "number" ? new Date(root["creation date"] * 1000) : null,
+    pieceLength: info["piece length"] || null
+  };
+}
+
+/* ---------- magnet build/parse ---------- */
+function buildMagnet({ btih, btmh, name, size, trackers = [], webSeeds = [] }) {
+  const p = [];
+  if (btih) p.push("xt=urn:btih:" + btih.toLowerCase());
+  if (btmh) p.push("xt=urn:btmh:" + btmh.toLowerCase());
+  if (name) p.push("dn=" + encodeURIComponent(name));
+  if (size) p.push("xl=" + size);
+  for (const t of trackers) p.push("tr=" + encodeURIComponent(t));
+  for (const w of webSeeds) p.push("ws=" + encodeURIComponent(w));
+  return "magnet:?" + p.join("&");
+}
+function parseMagnet(input) {
+  let s = input.trim();
+  if (/^[0-9a-f]{40}$/i.test(s) || /^[a-z2-7]{32}$/i.test(s)) s = "magnet:?xt=urn:btih:" + s;
+  if (!/^magnet:\?/i.test(s)) throw new Error("A magnet link starts with magnet:? — or paste a 40-character info hash.");
+  const out = { btih: null, btmh: null, name: null, size: null, trackers: [], webSeeds: [], sources: [], b32: null };
+  const dec = v => { try { return decodeURIComponent(v.replace(/\+/g, " ")); } catch { return v; } };
+  for (const part of s.slice(s.indexOf("?") + 1).split("&")) {
+    if (!part) continue;
+    const eq = part.indexOf("="); if (eq < 0) continue;
+    const key = part.slice(0, eq).toLowerCase().replace(/\.\d+$/, ""), val = dec(part.slice(eq + 1));
+    if (key === "xt") {
+      const m = val.match(/^urn:btih:([0-9a-z]+)$/i);
+      if (m) {
+        const h = m[1];
+        if (/^[0-9a-f]{40}$/i.test(h)) out.btih = h.toLowerCase();
+        else if (/^[a-z2-7]{32}$/i.test(h)) { out.btih = b32ToHex(h); out.b32 = h.toUpperCase(); }
+        else throw new Error("The info hash in this link is malformed. It should be 40 hex or 32 base32 characters.");
+      }
+      const mh = val.match(/^urn:btmh:([0-9a-f]+)$/i);
+      if (mh) out.btmh = mh[1].toLowerCase();
+    }
+    else if (key === "dn") out.name = val;
+    else if (key === "xl") out.size = Number(val) || null;
+    else if (key === "tr") { if (!out.trackers.includes(val)) out.trackers.push(val); }
+    else if (key === "ws") out.webSeeds.push(val);
+    else if (key === "xs" || key === "as") out.sources.push(val);
+  }
+  if (!out.btih && !out.btmh) throw new Error("This magnet link has no BitTorrent info hash (urn:btih or urn:btmh).");
+  return out;
+}
+const withExtra = (list, on) => on ? list.concat(PUBLIC_TRACKERS.filter(t => !list.includes(t))) : list;
+
+/* ---------- UI helpers ---------- */
+let toastT;
+function toast(m) { const t = $("#toast"); t.textContent = m; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 1800); }
+async function copy(text, node) {
+  try { await navigator.clipboard.writeText(text); toast("Copied"); }
+  catch {
+    if (node) { const r = document.createRange(); r.selectNodeContents(node); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+    toast("Press Ctrl+C / ⌘C to copy the selected text");
+  }
+}
+function metaList(rows) {
+  const dl = el("dl", { class: "meta" });
+  for (const [k, v, mono] of rows) { if (v == null || v === "") continue; dl.append(el("dt", { text: k }), typeof v === "string" ? el("dd", { class: mono ? "mono" : "", text: v }) : el("dd", {}, v)); }
+  return dl;
+}
+function ulist(items, cls) { const u = el("ul", { class: "list " + (cls || "") }); items.forEach(t => u.append(el("li", { text: t }))); return u; }
+function msg(kind, ...kids) { return el("div", { class: "msg " + kind }, ...kids); }
+
+/* ---------- Tabs ---------- */
+function setMode(mode) {
+  document.querySelectorAll(".modes button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.mode === mode)));
+  $("#panel-torrent").hidden = mode !== "torrent";
+  $("#panel-magnet").hidden = mode !== "magnet";
+}
+document.querySelectorAll(".modes button").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+/* ---------- Torrent → Magnet panel ---------- */
+const tResults = $("#t-results");
+let tItems = []; // {fileName, data|error, example}
+function magnetFor(d) {
+  return buildMagnet({ ...d, trackers: withExtra($("#t-trackers").checked ? d.trackers : [], $("#t-extra").checked) });
+}
+function renderTorrentResults() {
+  tResults.replaceChildren();
+  for (const it of tItems) {
+    const box = el("div", { class: "result" });
+    const head = el("div", { class: "row" }, el("span", { class: "fname", text: it.fileName }));
+    if (it.example) head.append(el("span", { class: "tag", text: "Example" }));
+    box.append(head);
+    if (it.error) { box.append(msg("err", it.error)); tResults.append(box); continue; }
+    const d = it.data, mag = magnetFor(d);
+    const out = el("div", { class: "out", text: mag });
+    const copyBtn = el("button", { class: "btn primary", text: "Copy magnet link" });
+    copyBtn.addEventListener("click", () => copy(mag, out));
+    const open = el("a", { class: "btn", href: mag, text: "Open in torrent app" });
+    box.append(out, el("div", { class: "row" }, copyBtn, open));
+    const hashBits = [];
+    if (d.btih) hashBits.push(["Info hash (v1)", d.btih, true]);
+    if (d.btmh) hashBits.push(["Info hash (v2)", d.btmh.slice(4), true]);
+    box.append(metaList([
+      ["Name", d.name],
+      ...hashBits,
+      ["Version", d.btih && d.btmh ? "Hybrid v1 + v2" : d.btmh ? "v2 only" : "v1"],
+      ["Size", fmtSize(d.size)],
+      ["Files", d.files.length > 1 ? d.files.length + " files" : null],
+      ["Piece size", d.pieceLength ? fmtSize(d.pieceLength).split(" (")[0] : null],
+      ["Private", d.private ? "Yes — trackers only, no DHT" : null],
+      ["Created", d.created ? d.created.toLocaleString() : null],
+      ["Created by", d.createdBy],
+      ["Comment", d.comment]
+    ]));
+    if (d.files.length > 1) box.append(el("details", {}, el("summary", { text: "File list" }), el("div", { class: "files" }, ulist(d.files.map(f => f.path + "  ·  " + fmtSize(f.length).split(" (")[0])))));
+    if (d.trackers.length) box.append(el("details", {}, el("summary", { text: d.trackers.length + " tracker" + (d.trackers.length > 1 ? "s" : "") }), ulist(d.trackers)));
+    tResults.append(box);
+  }
+  $("#t-all-row").hidden = tItems.filter(i => i.data).length < 2;
+}
+async function handleFiles(fileList) {
+  const files = Array.from(fileList);
+  if (!files.length) return;
+  tItems = [];
+  for (const f of files) {
+    try {
+      if (f.size > 50 * 1024 * 1024) throw new Error("This file is over 50 MB, which is far too large for a .torrent. Did you pick the downloaded content instead?");
+      const data = await parseTorrent(new Uint8Array(await f.arrayBuffer()));
+      tItems.push({ fileName: f.name, data });
+    } catch (e) { tItems.push({ fileName: f.name, error: e.message }); }
+  }
+  renderTorrentResults();
+}
+const drop = $("#drop"), fileInput = $("#file");
+drop.addEventListener("click", () => fileInput.click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+fileInput.addEventListener("change", () => { handleFiles(fileInput.files); fileInput.value = ""; });
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => handleFiles(e.dataTransfer.files));
+document.addEventListener("dragover", e => e.preventDefault());
+document.addEventListener("drop", e => { if (!drop.contains(e.target)) { e.preventDefault(); setMode("torrent"); handleFiles(e.dataTransfer.files); } });
+$("#t-trackers").addEventListener("change", renderTorrentResults);
+$("#t-extra").addEventListener("change", renderTorrentResults);
+$("#t-copy-all").addEventListener("click", () => copy(tItems.filter(i => i.data).map(i => magnetFor(i.data)).join("\n")));
+
+/* Example .torrent built in-page so the panel opens with a worked result */
+(async () => {
+  const pieces = new Uint8Array(20); for (let k = 0; k < 20; k++) pieces[k] = (k * 37 + 11) & 255;
+  const sample = bencode({
+    announce: "udp://tracker.opentrackr.org:1337/announce",
+    "announce-list": [["udp://tracker.opentrackr.org:1337/announce"], ["wss://tracker.openwebtorrent.com"]],
+    "created by": "Example",
+    info: { length: 1048576, name: "example-dataset.csv", "piece length": 1048576, pieces }
+  });
+  try { tItems = [{ fileName: "example-dataset.torrent", data: await parseTorrent(sample), example: true }]; renderTorrentResults(); } catch {}
+})();
+
+/* ---------- Magnet → Torrent panel ---------- */
+const mInput = $("#m-input"), mResults = $("#m-results");
+let fetchState = null; // { client, timer }
+function stopFetch() {
+  if (!fetchState) return;
+  clearTimeout(fetchState.timer); clearInterval(fetchState.tick);
+  try { fetchState.client.destroy(); } catch {}
+  fetchState = null;
+}
+function renderMagnet(example) {
+  stopFetch();
+  mResults.replaceChildren();
+  const raw = mInput.value.trim();
+  if (!raw) { mResults.append(msg("info", "Paste a magnet link above to see what's inside it.")); return; }
+  let m;
+  try { m = parseMagnet(raw); } catch (e) { mResults.append(msg("err", e.message)); return; }
+  const trackers = withExtra(m.trackers, $("#m-extra").checked);
+  const clean = buildMagnet({ btih: m.btih, btmh: m.btmh, name: m.name, size: m.size, trackers, webSeeds: m.webSeeds });
+  const box = el("div", { class: "result" });
+  const head = el("div", { class: "row" }, el("span", { class: "fname", text: m.name || "Unnamed torrent" }));
+  if (example) head.append(el("span", { class: "tag", text: "Example" }));
+  box.append(head);
+
+  box.append(metaList([
+    ["Info hash (hex)", m.btih, true],
+    ["Info hash (base32)", m.btih ? hexToB32(m.btih) : null, true],
+    ["Info hash (v2)", m.btmh ? m.btmh.replace(/^1220/, "") : null, true],
+    ["Size", m.size ? fmtSize(m.size) : null],
+    ["Trackers", trackers.length ? null : "None — clients will rely on DHT"],
+    ["Web seeds", m.webSeeds.length ? m.webSeeds.join("\n") : null]
+  ]));
+  if (trackers.length) box.append(el("details", {}, el("summary", { text: trackers.length + " tracker" + (trackers.length > 1 ? "s" : "") }), ulist(trackers)));
+
+  const out = el("div", { class: "out", text: clean });
+  const cBtn = el("button", { class: "btn", text: "Copy cleaned magnet" });
+  cBtn.addEventListener("click", () => copy(clean, out));
+  box.append(el("div", { class: "field", style: "display:grid;gap:6px" }, el("span", { class: "tag", style: "justify-self:start", text: "Cleaned link" }), out), el("div", { class: "row" }, cBtn));
+
+  /* .torrent fetch */
+  const fetchArea = el("div", { style: "display:grid;gap:10px" });
+  const fBtn = el("button", { class: "btn primary", text: "Get .torrent file" });
+  fetchArea.append(el("div", { class: "row" }, fBtn));
+  fBtn.addEventListener("click", () => fetchTorrent(m, trackers, fetchArea, fBtn));
+  box.append(fetchArea);
+  mResults.append(box);
+}
+
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    if (window.WebTorrent) return res();
+    const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("Couldn't load the torrent engine. Check your connection and try again.")); document.head.append(s);
+  });
+}
+function saveFile(bytes, filename, area) {
+  const blob = new Blob([bytes], { type: "application/x-bittorrent" });
+  const url = URL.createObjectURL(blob);
+  const a = el("a", { href: url, download: filename, class: "btn primary", text: "Save " + filename });
+  area.append(a);
+  try { a.click(); } catch {}
+}
+function canPeer() {
+  if (typeof RTCPeerConnection === "undefined") return false;
+  try { const pc = new RTCPeerConnection(); pc.close(); return true; } catch { return false; }
+}
+async function fetchTorrent(m, trackers, area, btn) {
+  stopFetch();
+  area.querySelectorAll(".msg,.progress,a").forEach(n => n.remove());
+  if (!m.btih) { area.append(msg("err", "Fetching needs a v1 (btih) info hash, and this link only has a v2 hash.")); return; }
+  if (!canPeer()) {
+    area.append(msg("info", "This view can't open peer connections, so it can't fetch .torrent files. ", el("a", { href: STANDALONE_URL, target: "_blank", rel: "noopener", text: "Open the standalone converter" }), " to fetch it there."));
+    return;
+  }
+  btn.disabled = true;
+  const status = msg("info", "Loading the torrent engine…"), bar = el("div", { class: "progress" }, el("i"));
+  area.append(bar, status);
+  try { await loadScript(WEBTORRENT_SRC); } catch (e) { bar.remove(); status.className = "msg err"; status.textContent = e.message; btn.disabled = false; return; }
+
+  const client = new window.WebTorrent();
+  const started = Date.now(), LIMIT = 90;
+  fetchState = { client };
+  client.on("error", err => finish("err", "Torrent engine error: " + (err && err.message || err)));
+  const mag = buildMagnet({ btih: m.btih, name: m.name, trackers: trackers.concat(WS_TRACKERS.filter(t => !trackers.includes(t))), webSeeds: m.webSeeds });
+  let torrent;
+  try { torrent = client.add(mag, { destroyStoreOnDestroy: true }); } catch (e) { finish("err", e.message); return; }
+  status.textContent = "Looking for browser peers that have this torrent…";
+  fetchState.tick = setInterval(() => {
+    const secs = Math.round((Date.now() - started) / 1000);
+    status.textContent = "Looking for browser peers… " + (torrent.numPeers || 0) + " connected · " + secs + "s";
+  }, 1000);
+  fetchState.timer = setTimeout(() => finish("err", "No browser peers sent the metadata within " + LIMIT + " seconds. This torrent is probably seeded only by desktop clients. Open the magnet link in qBittorrent or Transmission and export the .torrent from there."), LIMIT * 1000);
+  torrent.on("metadata", () => {
+    const bytes = torrent.torrentFile;
+    const filename = (torrent.name || m.btih).replace(/[\\/:*?"<>|]+/g, "_") + ".torrent";
+    finish("ok", "Got the metadata for " + (torrent.name || "this torrent") + " (" + fmtSize(torrent.length).split(" (")[0] + ").", () => saveFile(bytes, filename, area));
+  });
+  function finish(kind, text, after) {
+    stopFetch(); bar.remove(); btn.disabled = false;
+    status.className = "msg " + kind; status.textContent = text;
+    if (after) after();
+  }
+}
+
+mInput.addEventListener("input", () => renderMagnet(false));
+$("#m-extra").addEventListener("change", () => renderMagnet(mInput.value === SAMPLE_MAGNET));
+$("#m-clear").addEventListener("click", () => { mInput.value = ""; renderMagnet(false); mInput.focus(); });
+mInput.addEventListener("focus", () => { if (mInput.value === SAMPLE_MAGNET) mInput.select(); });
+
+mInput.value = SAMPLE_MAGNET;
+renderMagnet(true);
+const h = (location.hash || "").slice(1);
+if (h === "torrent" || h === "magnet") setMode(h);
+})();
+</script>
+</body>
+</html>
